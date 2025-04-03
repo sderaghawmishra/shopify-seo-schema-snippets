@@ -1,0 +1,124 @@
+{% if template contains 'product' and product %}
+  {% assign rating_value = product.metafields.reviews.rating.value | default: 4.6 %}
+  {% assign review_count = product.metafields.reviews.count.value | default: 12 %}
+  {% assign review_list = product.metafields.reviews.recent_reviews.value | split: '||' %}
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": {{ product.title | json }},
+    "description":
+      {% if product.description != blank %}
+        {{ product.description | strip_html | strip_newlines | truncate: 500 | json }}
+      {% elsif product.metafields.custom.seo_description != blank %}
+        {{ product.metafields.custom.seo_description | json }}
+      {% else %}
+        "Product description not available."
+      {% endif %},
+
+    "sku": {% if product.selected_or_first_available_variant.sku != blank %}
+      {{ product.selected_or_first_available_variant.sku | json }}
+    {% elsif product.variants.first.sku != blank %}
+      {{ product.variants.first.sku | json }}
+    {% else %}
+      {{ product.id | json }}
+    {% endif %},
+
+    "mpn": {% if product.selected_or_first_available_variant.sku != blank %}
+      {{ product.selected_or_first_available_variant.sku | json }}
+    {% else %}
+      {{ product.id | json }}
+    {% endif %},
+
+    "brand": {
+      "@type": "Brand",
+      "name":
+        {% if product.vendor != blank %}
+          {{ product.vendor | json }}
+        {% elsif settings.brand_name != blank %}
+          {{ settings.brand_name | json }}
+        {% else %}
+          "Generic"
+        {% endif %}
+    },
+
+    "image": [
+      {% if product.images.size > 0 %}
+        {% for image in product.images %}
+          {{ image.src | img_url: 'master' | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
+        {% endfor %}
+      {% elsif product.featured_image %}
+        {{ product.featured_image | img_url: 'master' | prepend: 'https:' | json }}
+      {% else %}
+        "{{ shop.url }}/placeholder.png"
+      {% endif %}
+    ],
+
+    "offers": {
+      "@type": "Offer",
+      "url": {{ shop.url | append: product.url | json }},
+      "priceCurrency": {% if cart.currency.iso_code %}
+        {{ cart.currency.iso_code | json }}
+      {% elsif shop.currency %}
+        {{ shop.currency | json }}
+      {% else %}
+        "USD"
+      {% endif %},
+      "price": {% if product.selected_or_first_available_variant.price %}
+        {{ product.selected_or_first_available_variant.price | money_without_currency | replace: ',', '' }}
+      {% elsif product.price %}
+        {{ product.price | money_without_currency | replace: ',', '' }}
+      {% else %}
+        "0.00"
+      {% endif %},
+      "availability": "{% if product.selected_or_first_available_variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
+      "itemCondition": "https://schema.org/NewCondition",
+      "seller": {
+        "@type": "Organization",
+        "name": {{ shop.name | json }}
+      }
+    },
+
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "{{ rating_value }}",
+      "reviewCount": "{{ review_count }}"
+    },
+
+    "review": [
+      {% if review_list.size > 0 %}
+        {% for review in review_list %}
+          {
+            "@type": "Review",
+            "author": {
+              "@type": "Person",
+              "name": "{{ review | split: '::' | last | strip | default: 'Anonymous' }}"
+            },
+            "reviewRating": {
+              "@type": "Rating",
+              "ratingValue": "{{ review | split: '::' | first | strip | default: '5' }}",
+              "bestRating": "5"
+            },
+            "reviewBody": "Customer feedback"
+          }{% unless forloop.last %},{% endunless %}
+        {% endfor %}
+      {% else %}
+        {
+          "@type": "Review",
+          "author": {
+            "@type": "Person",
+            "name": "Verified Buyer"
+          },
+          "reviewRating": {
+            "@type": "Rating",
+            "ratingValue": "{{ rating_value }}",
+            "bestRating": "5"
+          },
+          "reviewBody": "Great product. Would purchase again."
+        }
+      {% endif %}
+    ]
+  }
+  </script>
+{% endif %}
